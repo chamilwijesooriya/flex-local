@@ -1,0 +1,29 @@
+{
+    "name": "chamil/flex-local",
+    "type": "composer-plugin",
+    "description": "Composer plugin for using Symfony Flex Recipes locally",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Chamil Wijesooriya",
+            "email": "chamil.wijesooriya@gmail.com"
+        }
+    ],
+    "minimum-stability": "dev",
+    "require": {
+        "php": ">=7.1",
+        "composer-plugin-api": "^1.0|^2.0",
+        "symfony/flex": "^1.19"
+    },
+    "require-dev": {
+        "composer/composer": "^1.0.2|^2.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Chamil\\FlexLocal\\": "src/"
+        }
+    },
+    "extra": {
+        "class": "Chamil\\FlexLocal\\FlexLocal"
+    }
+}

@@ -2,7 +2,7 @@
 
 This is a proof of concept for using Symfony Flex Recipes locally. This is not in any way feature complete or bug proof.
 
-* Added support for merging recipeyaml with existing yaml file - poc
+* Added support for merging yaml files - POC
 
 ## Usage
 * In your package, create a `recipe` folder and add recipe configuration.

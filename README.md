@@ -2,6 +2,8 @@
 
 This is a proof of concept for using Symfony Flex Recipes locally. This is not in any way feature complete or bug proof.
 
+* Added support for merging recipeyaml with existing yaml file - poc
+
 ## Usage
 * In your package, create a `recipe` folder and add recipe configuration.
   * `manifest.json` file should be in following format, similar to but not exactly as described in [Symfony documentation](https://symfony.com/doc/current/setup/flex_private_recipes.html).
@@ -15,6 +17,9 @@ This is a proof of concept for using Symfony Flex Recipes locally. This is not i
             },
             "copy-from-recipe": {
                 "config/": "%CONFIG_DIR%"
+            },
+            "yaml": {
+                "config/security.yaml": "%CONFIG_DIR%/packages/security.yaml"
             }
         },
         "files": {

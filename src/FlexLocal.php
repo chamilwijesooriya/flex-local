@@ -14,10 +14,8 @@ use Composer\Package\PackageInterface;
 use Composer\Plugin\PluginInterface;
 use Composer\Script\Event;
 use Composer\Script\ScriptEvents;
-use Symfony\Flex\Configurator;
 use Symfony\Flex\Lock;
 use Symfony\Flex\Options;
-use Symfony\Flex\Recipe;
 use function dirname;
 use function is_array;
 use const PATHINFO_EXTENSION;
@@ -106,8 +104,7 @@ class FlexLocal implements PluginInterface, EventSubscriberInterface
         foreach ($recipes as $recipe) {
             if ($recipe->getJob() === 'install') {
                 $this->io->writeError(sprintf('  - Configuring %s', $this->formatOrigin($recipe)));
-                $this->configurator->install($recipe, $this->lock, [
-                ]);
+                $this->configurator->install($recipe, $this->lock);
                 $manifest = $recipe->getManifest();
                 if (isset($manifest['post-install-output'])) {
                     $this->postInstallOutput[] = sprintf('<bg=yellow;fg=white> %s </> instructions:', $recipe->getName());
@@ -194,6 +191,7 @@ class FlexLocal implements PluginInterface, EventSubscriberInterface
                     'package' => $name,
                     'version' => $version,
                     'origin' => sprintf('local recipe for %s:%s', $name, $package->getPrettyVersion()),
+                    'package_installation_path' => $installPath,
                 ];
         }
         return $data;

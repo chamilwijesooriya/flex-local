@@ -28,14 +28,12 @@ class YamlConfigurator extends AbstractConfigurator
         $to = $options['root-dir'] ?? '.';
         $from = $options['package_installation_path'];
 
-
         foreach ($manifest as $source => $target) {
             $target = $this->options->expandTargetDir($target);
             if ('yaml' === substr($source, -4) || 'yml' === substr($source, -3)) {
                 $this->copyFile($this->path->concatenate([$from, 'recipe/' . $source]), $this->path->concatenate([$to, $target]), $options);
             }
         }
-
     }
 
     private function copyFile(string $source, string $target, array $options)
@@ -50,7 +48,7 @@ class YamlConfigurator extends AbstractConfigurator
             $toContent = Yaml::parseFile($target);
         }
         // merge arrays
-        $content = array_merge_recursive($toContent, $sourceContent);
+        $content = array_replace_recursive($toContent, $sourceContent);
 
 
         if (!is_dir(\dirname($target))) {

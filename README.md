@@ -35,13 +35,13 @@ This is a proof of concept for using Symfony Flex Recipes locally. This is not i
         "ref": "7405f3af1312d1f9121afed4dddef636c6c7ff00"
     }
     ```
-* Enable _Symfony Flex Local_ usage in `extra` section of `composer.json`
+* Enable _Symfony Flex Local_ usage in `extra` section of your custom package `composer.json`
   ```json
   "extra": {
       "flex-local": true
   }
   ```
-* Add dependency to _Symfony Flex Local_ in `composer.json`
+* Add dependency to _Symfony Flex Local_ in your custom package `composer.json`
   ```json
     "require": {
         "chamil/flex-local": "@dev"

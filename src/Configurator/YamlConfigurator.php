@@ -42,10 +42,18 @@ class YamlConfigurator extends AbstractConfigurator
             return;
         }
         $sourceContent = Yaml::parseFile($source);
+        // if file has only comments, this will be empty
+        if (!is_array($sourceContent)) {
+            return;
+        }
 
         $toContent = [];
         if (file_exists($target)) {
             $toContent = Yaml::parseFile($target);
+            // if file has only comments, this will be empty
+            if (!is_array($toContent)) {
+                $toContent = [];
+            }
         }
         // merge arrays
         $content = array_replace_recursive($toContent, $sourceContent);

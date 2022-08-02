@@ -3,7 +3,7 @@
 namespace Chamil\FlexLocal;
 
 use Composer\Composer;
-use Composer\DependencyResolver\Operation\OperationInterface;
+use Composer\DependencyResolver\Operation\InstallOperation;
 use Composer\EventDispatcher\EventSubscriberInterface;
 use Composer\Factory;
 use Composer\Installer\PackageEvent;
@@ -26,8 +26,11 @@ class FlexLocal implements PluginInterface, EventSubscriberInterface
     private IOInterface $io;
     private Options $options;
     private array $operations = [];
+    private array $packages = []; // packages that have flex local
     private Configurator $configurator;
     private Lock $lock;
+    private Lock $flexLocalLock;
+    private bool $flexInstall = FALSE;
 
     public static function getSubscribedEvents()
     {
@@ -47,9 +50,29 @@ class FlexLocal implements PluginInterface, EventSubscriberInterface
         $composerFile = Factory::getComposerFile();
         $composerLock = 'json' === pathinfo($composerFile, PATHINFO_EXTENSION) ? substr($composerFile, 0, -4) . 'lock' : $composerFile . '.lock';
         $symfonyLock = str_replace('composer', 'symfony', basename($composerLock));
+        // dunno why
+        $flexLocalLock = str_replace('composer', 'flexlocal', basename($composerLock));
 
         $this->configurator = new Configurator($composer, $io, $this->options);
         $this->lock = new Lock(getenv('SYMFONY_LOCKFILE') ?: dirname($composerLock) . '/' . (basename($composerLock) !== $symfonyLock ? $symfonyLock : 'symfony.lock'));
+        // dunno why
+        $this->flexLocalLock = new Lock(dirname($composerLock) . '/' . (basename($composerLock) !== $flexLocalLock ? $flexLocalLock : 'flexlocal.lock'));
+
+        // check if temp file has any data
+        if (!empty($this->flexLocalLock->all())) {
+            $localRepository = $this->composer->getRepositoryManager()->getLocalRepository();
+            $packages = $this->flexLocalLock->all();
+            foreach ($packages as $name => $data) {
+                // need package to pass with Recipe
+                $package = $localRepository->findPackage($name, '');
+                if (isset($package)) {
+                    $this->packages[$name] = $data + ['package' => $package];
+                }
+            }
+
+            // delete lock file
+            // $this->flexLocalLock->delete();
+        }
     }
 
     /**
@@ -80,7 +103,7 @@ class FlexLocal implements PluginInterface, EventSubscriberInterface
 
     public function uninstall(Composer $composer, IOInterface $io)
     {
-        // TODO: Implement uninstall() method.
+        $this->flexLocalLock->delete();
     }
 
     public function update(Event $event, $operations = [])
@@ -94,8 +117,8 @@ class FlexLocal implements PluginInterface, EventSubscriberInterface
     public function install(Event $event)
     {
         // get recipes
-        $recipes = $this->fetchRecipes($this->operations);
-        $this->operations = [];     // Reset the operations after getting recipes
+        $recipes = $this->fetchRecipes($this->packages);
+        $this->packages = [];     // Reset the operations after getting recipes
 
         if (empty($recipes)) {
             return;
@@ -118,58 +141,64 @@ class FlexLocal implements PluginInterface, EventSubscriberInterface
         }
     }
 
+
+    public function packageInstall(PackageEvent $event)
+    {
+        // each individual package install comes here
+
+        /** @var InstallOperation $operation */
+        $operation = $event->getOperation();
+        $package = $operation->getPackage();
+
+        // evaluate the package and add to the list
+        $this->evaluatePackage($package, $operation->getOperationType());
+
+        // if flex is being installed, write file
+        // always do this here, because update event is being stopped from propagating in flex
+        if ($this->flexInstall) {
+            $this->flexLocalLock->write();
+        }
+    }
+
     /**
      * @return Recipe[]
      */
-    public function fetchRecipes(array $operations): array
+    private function fetchRecipes(array $packages): array
     {
         $recipes = [];
-        $manifests = $this->loadManifests($operations);
+        $manifests = $this->loadManifests($packages);
 
         if (empty($manifests)) {
             return $recipes;
         }
 
-        foreach ($operations as $operation) {
-
-            /** @var PackageInterface $package */
-            $package = $operation->getPackage();
-            $name = $package->getName();
-
+        foreach ($packages as $name => $data) {
             if (isset($manifests['manifests'][$name])) {
-                $job = method_exists($operation, 'getOperationType') ? $operation->getOperationType() : $operation->getJobType();
-                $recipes[$name] = new Recipe($package, $name, $job, $manifests['manifests'][$name]);
+                // add to recipes
+                $recipes[$name] = new Recipe($data['package'], $name, $data['op'], $manifests['manifests'][$name]);
             }
         }
 
         return $recipes;
     }
 
-    /**
-     * @param OperationInterface[] $operations
-     */
-    private function loadManifests(array $operations)
+    private function loadManifests(array $packages)
     {
-        $data = [];
-        $repositoryManager = $this->composer->getRepositoryManager();
-        $installationManager = $this->composer->getInstallationManager();
-        $localRepository = $repositoryManager->getLocalRepository();
+        $manifests = [];
+        $localRepository = $this->composer->getRepositoryManager()->getLocalRepository();
 
-        $installedPackages = $localRepository->getPackages();
-
-        foreach ($operations as $operation) {
+        foreach ($packages as $name => $data) {
             /** @var PackageInterface $package */
-            $package = $operation->getPackage();
-            $name = $package->getName();
+            $package = $data['package'];
+            $installPath = $data['install_path'];
 
-            foreach ($installedPackages as $installedPackage) {
-                if ($name === $installedPackage->getName()) {
-                    $installPath = $installationManager->getInstallPath($package);
-                    break;
-                }
+            // make sure package is still installed
+            if (!$localRepository->hasPackage($package)) {
+                continue;
             }
+
             // check recipe/manifest.json exists in current package
-            if (!isset($installPath) || !file_exists($manifestPath = $installPath . '/recipe/manifest.json')) {
+            if (!file_exists($manifestPath = $installPath . '/recipe/manifest.json')) {
                 continue;
             }
 
@@ -184,17 +213,17 @@ class FlexLocal implements PluginInterface, EventSubscriberInterface
 
             $version = $package->getPrettyVersion();
 
-            $data['locks'][$name]['version'] = $version;
-            $data['locks'][$name]['recipe']['version'] = 'dev'; // TODO:: need something different here
+            $manifests['locks'][$name]['version'] = $version;
+            $manifests['locks'][$name]['recipe']['version'] = 'dev'; // TODO:: need something different here
 
-            $data['manifests'][$name] = $manifest + [
+            $manifests['manifests'][$name] = $manifest + [
                     'package' => $name,
                     'version' => $version,
                     'origin' => sprintf('local recipe for %s:%s', $name, $package->getPrettyVersion()),
                     'package_installation_path' => $installPath,
                 ];
         }
-        return $data;
+        return $manifests;
     }
 
     /**
@@ -217,10 +246,46 @@ class FlexLocal implements PluginInterface, EventSubscriberInterface
         return sprintf('<info>%s</> (<comment>>=%s</>): From %s', $matches[1], $matches[2], 'auto-generated recipe' === $matches[3] ? '<comment>' . $matches[3] . '</>' : $matches[3]);
     }
 
-    public function packageInstall(PackageEvent $event)
+
+    private function evaluatePackage(PackageInterface $package, string $op)
     {
-        // each individual package install comes here
-        // add them to operations list, which will be used by the install script event listener
-        $this->operations[] = $event->getOperation();
+        $installationManager = $this->composer->getInstallationManager();
+
+        $extra = $package->getExtra();
+        // check if flex is also being installed
+        // if it is, it will start a separate installation process, so we need to save flex-local packages to a temp file
+        // and use that later is it's there
+        if ('symfony/flex' === $package->getName()) {
+            $this->flexInstall = TRUE;
+            // save any operations in list and clear it
+            if (!empty($this->packages)) {
+                // write packages to file
+                foreach ($this->packages as $packageName => $data) {
+                    $this->flexLocalLock->set($packageName, $data);
+                }
+
+                // clear package list
+                $this->packages = [];
+            }
+        }
+
+        if (isset($extra['flex-local']) && $extra['flex-local'] === TRUE) {
+            if ($this->flexInstall) {
+                // flex flag is true, so copy the package name to temp file
+                $this->flexLocalLock->set($package->getName(), [
+                    'op' => $op,
+                    'install_path' => $installationManager->getInstallPath($package),
+                    'package' => $package,
+                ]);
+            } else {
+                // set to current list of packages
+                $this->packages[$package->getName()] = [
+                    'op' => $op,
+                    'install_path' => $installationManager->getInstallPath($package),
+                    'package' => $package,
+                ];
+            }
+        }
     }
+
 }

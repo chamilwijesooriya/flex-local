@@ -5,7 +5,7 @@ This is a proof of concept for using Symfony Flex Recipes locally. This is not i
 * Added support for merging yaml files - POC
 
 ## Usage
-* In your package, create a `recipe` folder and add recipe configuration.
+* In your custom package, create a `recipe` folder and add recipe configuration.
   * `manifest.json` file should be in following format, similar to but not exactly as described in [Symfony documentation](https://symfony.com/doc/current/setup/flex_private_recipes.html).
     ```json
     {
@@ -35,18 +35,22 @@ This is a proof of concept for using Symfony Flex Recipes locally. This is not i
         "ref": "7405f3af1312d1f9121afed4dddef636c6c7ff00"
     }
     ```
-* Install this package locally using composer.
-  * Example `composer.json`
-    ```json
+* Enable _Symfony Flex Local_ usage in `extra` section of `composer.json`
+  ```json
+  "extra": {
+      "flex-local": true
+  }
+  ```
+* Add dependency to _Symfony Flex Local_ in `composer.json`
+  ```json
+    "require": {
+        "chamil/flex-local": "@dev"
+    },
     "repositories": [
         {
-            "type": "path",
-            "url": "path-to-directory",
-            "options": {
-                "reference": "none"
-            }
-        },
+            "type": "git",
+            "url": "https://github.com/chamilwijesooriya/flex-local.git"
+        }
     ]
-    ```
-  * `composer require chamil/flex-local:@dev`  
-* Install your package with local recipe
+  ```
+* Install your custom package in the app 

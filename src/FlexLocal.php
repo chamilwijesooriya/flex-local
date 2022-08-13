@@ -125,8 +125,6 @@ class FlexLocal implements PluginInterface, EventSubscriberInterface
         }
 
         $this->flexLocalLock->delete();
-        // run scripts
-        $this->composer->getEventDispatcher()->dispatchScript('auto-scripts');
     }
 
     /**
